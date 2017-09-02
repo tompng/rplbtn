@@ -14,19 +14,25 @@ class RippleButton{
     this.mesh = new THREE.Mesh(geom)
     this.mesh.material = RippleButton.shader()
     this.scene.add(this.mesh)
-    let animate = ()=>{
-      this.render()
-      requestAnimationFrame(animate)
-    }
-    animate()
+    this.requestRender()
     this.element.onclick = (e) => {
       let x = e.offsetX / this.element.offsetWidth
       let y = 1-e.offsetY / this.element.offsetHeight
       let vs = 4
       let rnd = (s)=>s*(2*Math.random()-1)
       this.simulator.disturb({x: x, y: y}, {r: 0.1, vx: rnd(2), vy: rnd(2), hmult: 0.95, h: -1, a: 1})
+      this.requestRenderFactor = 1
+      this.requestRender()
       if(this.onclick)this.onclick()
     }
+  }
+  requestRender(){
+    if(this.requested)return
+    this.requested = true
+    requestAnimationFrame(()=>{
+      this.requested = false
+      this.render()
+    })
   }
   render(){
     let renderer = this.renderer
@@ -40,15 +46,12 @@ class RippleButton{
     }
     this.prepare()
     let time = performance.now()/1000
-    // this.simulator.disturb(
-    //   { x: 0.5, y: 0.5 },
-    //   { vx: 2*Math.cos(time), vy: 2*Math.sin(time), a: 1, b: 0.5+0.5*Math.sin(time/3) }
-    // )
-    this.simulator.calc()
+    for(let i=0;i<2;i++)this.simulator.calc()
     this.mesh.material.uniforms.texture.value = this.texture
     this.mesh.material.uniforms.wave.value = this.simulator.wave && this.simulator.wave.texture
     this.renderer.render(this.scene, this.camera)
-    // FluidGL.show(this.renderer, this.simulator.wave)
+    this.requestRenderFactor*=0.98
+    if(this.requestRenderFactor>0.01)this.requestRender()
   }
   prepare(){
     let cacheKey = JSON.stringify([this.text, this.renderOption])
