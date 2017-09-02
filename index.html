@@ -15,7 +15,7 @@ class RippleButton{
     this.mesh.material = RippleButton.shader()
     this.scene.add(this.mesh)
     this.requestRender()
-    this.element.onclick = (e) => {
+    let ripple = (e) => {
       let x = e.offsetX / this.element.offsetWidth
       let y = 1-e.offsetY / this.element.offsetHeight
       let vs = 4
@@ -23,6 +23,10 @@ class RippleButton{
       this.simulator.disturb({x: x, y: y}, {r: 0.1, vx: rnd(2), vy: rnd(2), hmult: 0.95, h: -1, a: 1})
       this.requestRenderFactor = 1
       this.requestRender()
+    }
+    this.element.onmousedown = (e)=>ripple(e)
+    this.element.onclick = (e)=>{
+      ripple(e)
       if(this.onclick)this.onclick()
     }
   }
