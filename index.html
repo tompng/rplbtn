@@ -1,0 +1,179 @@
+<script src='./fluid_gl.js'></script>
+<script>
+class RippleButton{
+  constructor(text, option){
+    this.text = text
+    this.renderOption = option || {}
+    this.renderer = new THREE.WebGLRenderer({alpha: true})
+    this.element = this.renderer.domElement
+    this.simulator = new FluidGL.WaveSimulator(this.renderer, 32, {vDecay: 0.98, hDecay: 0.98})
+    this.camera = new THREE.Camera()
+    this.camera.position.z = 1
+    this.scene = new THREE.Scene()
+    let geom = new THREE.PlaneBufferGeometry(2, 2)
+    this.mesh = new THREE.Mesh(geom)
+    this.mesh.material = RippleButton.shader()
+    this.scene.add(this.mesh)
+    let animate = ()=>{
+      this.render()
+      requestAnimationFrame(animate)
+    }
+    animate()
+    this.element.onclick = (e) => {
+      let x = e.offsetX / this.element.offsetWidth
+      let y = 1-e.offsetY / this.element.offsetHeight
+      let vs = 4
+      let rnd = (s)=>s*(2*Math.random()-1)
+      this.simulator.disturb({x: x, y: y}, {r: 0.1, vx: rnd(2), vy: rnd(2), hmult: 0.95, h: -1, a: 1})
+      if(this.onclick)this.onclick()
+    }
+  }
+  render(){
+    let renderer = this.renderer
+    let size = renderer.getSize()
+    let w = this.option('width',  200)
+    let h = this.option('height', 100)
+    if(size.width != w*2 || size.height != h*2){
+      renderer.setSize(w*2, h*2)
+      renderer.domElement.style.width = w
+      renderer.domElement.style.height = h
+    }
+    this.prepare()
+    let time = performance.now()/1000
+    // this.simulator.disturb(
+    //   { x: 0.5, y: 0.5 },
+    //   { vx: 2*Math.cos(time), vy: 2*Math.sin(time), a: 1, b: 0.5+0.5*Math.sin(time/3) }
+    // )
+    this.simulator.calc()
+    this.mesh.material.uniforms.texture.value = this.texture
+    this.mesh.material.uniforms.wave.value = this.simulator.wave && this.simulator.wave.texture
+    this.renderer.render(this.scene, this.camera)
+    // FluidGL.show(this.renderer, this.simulator.wave)
+  }
+  prepare(){
+    let cacheKey = JSON.stringify([this.text, this.renderOption])
+    if(this.cacheKey == cacheKey)return
+    if(this.texture)this.texture.dispose()
+    this.texture = new THREE.Texture(this.prepareCanvas())
+    this.texture.needsUpdate = true
+    this.cacheKey = cacheKey
+  }
+  option(key, defaultValue){
+    let value = this.renderOption[key]
+    if(value === undefined)return defaultValue
+    switch(typeof defaultValue){
+      case 'string': return String(value)
+      case 'number': return Number(value)
+      default: return value
+    }
+  }
+  prepareCanvas(){
+    let canvas = this.canvas
+    if(!canvas)this.canvas = canvas = document.createElement('canvas')
+    let w = this.option('width',  200)
+    let h = this.option('height', 100)
+    let offset = this.option('offset', 20)
+    let r = this.option('borderRadius', 20)
+    let g = canvas.getContext('2d')
+
+    let cw = Math.pow(2, Math.ceil(Math.log2(2*w)))
+    let ch = Math.pow(2, Math.ceil(Math.log2(2*h)))
+
+    canvas.width = cw
+    canvas.height = ch
+    canvas.style.width=w
+    canvas.style.height=h
+    g.scale(cw/w, ch/h)
+
+    g.clearRect(0, 0, w, h)
+    function rect(x, y, w, h, r){
+      g.beginPath()
+      if(r === 0) return g.rect(x, y, w, h)
+      let rw = Math.min(w/2, r)
+      let rh = Math.min(h/2, r)
+      let s = 1/3
+      g.moveTo(x, y+rh)
+      if(r === rh)g.lineTo(x, y+h-rh)
+      g.bezierCurveTo(x, y+h-rh*s, x+rw*s, y+h, x+rw, y+h)
+      if(r === rw)g.lineTo(x+w-rw, y+h)
+      g.bezierCurveTo(x+w-rw*s, y+h, x+w, y+h-rh*s, x+w, y+h-rh)
+      if(r === rh)g.lineTo(x+w, y+rh)
+      g.bezierCurveTo(x+w, y+rh*s, x+w-rw*s, y, x+w-rw, y)
+      if(r === rw)g.lineTo(x+rw, y)
+      g.bezierCurveTo(x+rw*s, y, x, y+rh*s, x, y+rh)
+      g.closePath()
+    }
+    rect(offset, offset, w-2*offset, h-2*offset, r)
+    let lineWidth = this.option('borderWidth', 2)
+    let fill = this.option('backgroundColor', 'silver')
+    let stroke = this.option('borderColor', 'gray')
+    if(fill){
+      g.fillStyle = fill
+      g.fill()
+    }
+    let color = this.option('color', 'black')
+    let size = this.option('fontSize', 24)
+    let font = this.option('fontFamily', 'sans-serif')
+    if(this.text){
+      g.font = `${parseInt(size)}px ${font}`
+      g.textAlign = 'center'
+      g.textBaseline = 'middle'
+      g.fillStyle = color
+      g.fillText(this.text, w/2, h/2)
+    }
+    if(stroke && lineWidth){
+      g.lineWidth = lineWidth
+      g.strokeStyle = stroke
+      g.stroke()
+    }
+    return canvas
+  }
+  static shader(){
+    let vertex = `
+    varying vec2 coord;
+    void main(){
+      coord = position.xy*0.5+0.5;
+      gl_Position = vec4(position,1);
+    }
+    `
+    let fragment = `
+    varying vec2 coord;
+    uniform sampler2D wave, texture;
+    void main(){
+      vec4 uv = texture2D(wave, coord);
+      gl_FragColor = texture2D(texture, coord + uv.xy);
+      float v2=uv.x*uv.x+uv.y*uv.y;
+      gl_FragColor.rgb *= 1.0-0.2*clamp(4096.0*v2, 0.0, 1.0);
+    }
+    `
+    return new THREE.ShaderMaterial({
+      uniforms: {wave: {type: 't'}, texture: {type: 't'}},
+      vertexShader: vertex,
+      fragmentShader: fragment,
+      transparent: true,
+      blending: THREE.NoBlending,
+      blendSrc: THREE.OneFactor,
+      blendDst: THREE.ZeroFactor
+    });
+  }
+}
+function addButton(){
+  let msgs = ['hello', 'button', 'foo', 'bar']
+  let msg = msgs[Math.floor(msgs.length*Math.random())]
+  let cnt = 0
+  rnd16=(a,b)=>Math.floor(a+(b+1-a)*Math.random()).toString(16)
+  rndcolor = (a,b)=>`#${rnd16(a,b)}${rnd16(a,b)}${rnd16(a,b)}`
+  let button = new RippleButton(msg+cnt, {
+    backgroundColor: rndcolor(12,15),
+    borderColor: rndcolor(8,15),
+    color: rndcolor(0,15),
+    borderWidth: 4*Math.random(),
+    borderRadius: 32*Math.random()
+  })
+  document.body.appendChild(button.element)
+  button.onclick=()=>{cnt++;button.text = msg+cnt}
+}
+onload=function(){
+  for(let i=0;i<10;i++)addButton()
+}
+</script>
