@@ -85,7 +85,7 @@ class RippleButton{
       if(this.mousePos.vx||this.mousePos.vy){
         let vs = 16
         this.simulator.disturb(
-          this.mousePos,
+          this.mousePos.x, this.mousePos.y,
           {r: 0.1, vmult: 0.95, hmult: 1, vx: vs*this.mousePos.vx, vy: vs*this.mousePos.vy}
         )
         this.mousePos.vx=this.mousePos.vy=0
