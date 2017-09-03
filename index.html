@@ -15,18 +15,48 @@ class RippleButton{
     this.mesh.material = RippleButton.shader()
     this.scene.add(this.mesh)
     this.requestRender()
-    let ripple = (e) => {
-      let x = e.offsetX / this.element.offsetWidth
-      let y = 1-e.offsetY / this.element.offsetHeight
+    let pos = (e) => {
+      return {
+        x: e.offsetX / this.element.offsetWidth,
+        y: 1-e.offsetY / this.element.offsetHeight
+      }
+    }
+    let ripple = (e, h) => {
       let vs = 4
       let rnd = (s)=>s*(2*Math.random()-1)
-      this.simulator.disturb({x: x, y: y}, {r: 0.1, vx: rnd(2), vy: rnd(2), hmult: 0.95, h: -1, a: 1})
+      let disturb = {r: 0.1, vx: rnd(2), vy: rnd(2), hmult: 0.95, h: h}
+      this.simulator.disturb(pos(e), disturb)
+      disturb.vmult = 1
+      disturb.h = -0.2
       this.requestRenderFactor = 1
+      e.preventDefault()
       this.requestRender()
     }
-    this.element.onmousedown = (e)=>ripple(e)
+    this.element.onpointerdown = this.element.onmousedown = (e)=>{
+      ripple(e, -1)
+      this.mousePos = pos(e)
+      this.requestRender()
+      e.preventDefault()
+      return false
+    }
+    this.element.onpointermove = this.element.onmousemove = (e)=>{
+      if(!this.mousePos)return
+      let p = pos(e)
+      p.vx = p.x
+      p.vx = p.x - this.mousePos.x
+      p.vy = p.y - this.mousePos.y
+      this.mousePos = p
+      e.preventDefault()
+      return false
+    }
+    this.element.onpointerout = this.element.onpointerup = this.element.onmouseup = this.element.onmouseout = (e)=>{
+      this.mousePos = null
+      this.requestRender()
+      e.preventDefault()
+      return false
+    }
     this.element.onclick = (e)=>{
-      ripple(e)
+      ripple(e, 1)
       if(this.onclick)this.onclick()
     }
   }
@@ -50,6 +80,19 @@ class RippleButton{
     }
     this.prepare()
     let time = performance.now()/1000
+
+    if(this.mousePos){
+      this.requestRenderFactor = 1
+      if(this.mousePos.vx||this.mousePos.vy){
+        let vs = 16
+        this.simulator.disturb(
+          this.mousePos,
+          {r: 0.1, vmult: 0.95, hmult: 1, vx: vs*this.mousePos.vx, vy: vs*this.mousePos.vy}
+        )
+        this.mousePos.vx=this.mousePos.vy=0
+      }
+    }
+
     for(let i=0;i<2;i++)this.simulator.calc()
     this.mesh.material.uniforms.texture.value = this.texture
     this.mesh.material.uniforms.wave.value = this.simulator.wave && this.simulator.wave.texture
