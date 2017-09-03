@@ -6,7 +6,7 @@ class RippleButton{
     this.renderOption = option || {}
     this.renderer = new THREE.WebGLRenderer({alpha: true})
     this.element = this.renderer.domElement
-    this.simulator = new FluidGL.WaveSimulator(this.renderer, 32, {vDecay: 0.98, hDecay: 0.98})
+    this.simulator = new FluidGL.WaveSimulator(this.renderer, 32, {decay: 0.98})
     this.camera = new THREE.Camera()
     this.camera.position.z = 1
     this.scene = new THREE.Scene()
@@ -25,9 +25,8 @@ class RippleButton{
       let vs = 4
       let rnd = (s)=>s*(2*Math.random()-1)
       let disturb = {r: 0.1, vx: rnd(2), vy: rnd(2), hmult: 0.95, h: h}
-      this.simulator.disturb(pos(e), disturb)
-      disturb.vmult = 1
-      disturb.h = -0.2
+      let p = pos(e)
+      this.simulator.disturb(p.x, p.y, disturb)
       this.requestRenderFactor = 1
       e.preventDefault()
       this.requestRender()

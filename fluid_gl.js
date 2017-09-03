@@ -44271,11 +44271,11 @@ class SimulatorBase {
     this.store.shader.uniforms.texture.value = target.texture
     this.renderer.render(this.store.scene, this.camera, this.store.target)
   }
-  disturb(position, r, mult, add){
+  disturb(x, y, r, mult, add){
     if(!this.disturbScene)this._initDisturb()
     let obj = this.disturbObjects[this.disturbIndex++]
     if(!obj)return
-    obj.mult.material.uniforms.center.value = obj.add.material.uniforms.center.value = new THREE.Vector4(2*position.x-1, 2*position.y-1)
+    obj.mult.material.uniforms.center.value = obj.add.material.uniforms.center.value = new THREE.Vector4(2*x-1, 2*y-1)
     obj.mult.material.uniforms.radius.value = obj.add.material.uniforms.radius.value = 2*r
     obj.mult.material.uniforms.value.value = mult
     obj.add.material.uniforms.value.value = add
@@ -44531,6 +44531,7 @@ class WaveSimulator extends SimulatorBase {
     super(renderer)
     this.wave0 = SimulatorBase.createRenderTarget(size, size)
     this.wave1 = SimulatorBase.createRenderTarget(size, size)
+    this.wave = this.wave0
     if(option.generateNormal){
       this.pattern = option.pattern
       this.normal = SimulatorBase.createRenderTarget(size, size)
@@ -44538,26 +44539,29 @@ class WaveSimulator extends SimulatorBase {
     }
     this.waveShader = WaveSimulator.waveShader(size)
     let defaultDecay = 0.9999
-    this.vDecay = option.vDecay || defaultDecay
-    this.hDecay = option.hDecay || defaultDecay
-    this.aDecay = option.aDecay || defaultDecay
+    this.vDecay = option.vDecay || option.decay || defaultDecay
+    this.hDecay = option.hDecay || option.decay || defaultDecay
+    this.aDecay = option.aDecay || option.decay || defaultDecay
   }
   clear(){
     this._clearTarget(this.wave0)
     this._clearTarget(this.wave1)
     if(this.normalShader)this._clearTarget(this.normalShader)
   }
-  disturb(position, option){
+  disturb(x, y, option){
     let vmult = option.vmult || 0
     let hmult = option.hmult || 1
     let amult = option.amult || 0.95
+    let vadd = option.vadd || 1-vmult
+    let hadd = option.hadd || 1-hmult
+    let aadd = option.aadd || 1-amult
     let vx = option.vx || 0
     let vy = option.vy || 0
     let h = option.h || 0
     let a = option.a || 0
     let mult = new THREE.Vector4(vmult, vmult, hmult, amult)
-    let add = new THREE.Vector4(vx*(1-vmult), vy*(1-vmult), h*(1-hmult), a*(1-amult))
-    super.disturb(position, option.r || 0.05, mult, add)
+    let add = new THREE.Vector4(vx*vadd, vy*vadd, h*hadd, a*aadd)
+    super.disturb(x, y, option.r || 0.05, mult, add)
   }
   calc(){
     this._disturbApply(this.wave)
@@ -44684,24 +44688,27 @@ class FluidSimulator extends SimulatorBase {
     this.pressuredVelocityShader = FluidSimulator.pressuredVelocityShader(size)
     this.poissonSolver = new PoissonSolverGL(renderer, size)
     let defaultDecay = 0.9999
-    this.vDecay = option.vDecay || defaultDecay
-    this.bDecay = option.bDecay || defaultDecay
-    this.aDecay = option.aDecay || defaultDecay
+    this.vDecay = option.vDecay || option.decay || defaultDecay
+    this.bDecay = option.bDecay || option.decay || defaultDecay
+    this.aDecay = option.aDecay || option.decay || defaultDecay
   }
   clear(){
     this._clearTarget(this.wave)
   }
-  disturb(position, option){
+  disturb(x, y, option){
     let vmult = option.vmult || 0
-    let amult = option.amult || 0.95
     let bmult = option.bmult || 0.95
+    let amult = option.amult || 0.95
+    let vadd = option.vadd || 1-vmult
+    let badd = option.badd || 1-bmult
+    let aadd = option.aadd || 1-amult
     let vx = option.vx || 0
     let vy = option.vy || 0
     let a = option.a || 0
     let b = option.b || 0
     let mult = new THREE.Vector4(vmult, vmult, bmult, amult)
-    let add = new THREE.Vector4(vx*(1-vmult), vy*(1-vmult), b*(1-bmult), a*(1-amult))
-    super.disturb(position, option.r || 0.05, mult, add)
+    let add = new THREE.Vector4(vx*vadd, vy*vadd, b*badd, a*aadd)
+    super.disturb(x, y, option.r || 0.05, mult, add)
   }
   calc(){
     this._disturbApply(this.wave)
